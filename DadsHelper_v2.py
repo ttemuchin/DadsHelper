@@ -117,12 +117,17 @@ class MainWindow(QMainWindow):
         
     def get_user_FIO(self, cursor, kod):
         try:
-            cursor.execute("SELECT * FROM Users WHERE ID = ?", (kod,))
+            # cursor.execute(f"SELECT TOP 1 * FROM Users")
+            # columns = cursor.description       
+            # print(f"Структура таблицы Users:", columns[0][0], columns[0][1])
+            # Структура таблицы Users: kod <class 'int'>
+            cursor.execute("SELECT * FROM Users WHERE kod = ?", (kod,))
             row = cursor.fetchone()
+            print(row)
             if row:
                 return [row[1], row[2], row[3]]
             else:
-                print(f"User with ID {kod} not found in Users.")
+                print(f"User with 'Номер' {kod} not found in Users.")
                 return None
         except Exception as e:
             print(f"Select ERROR: {e}")
@@ -162,6 +167,7 @@ class MainWindow(QMainWindow):
 
         cursor = conn.cursor()
 
+        SuccessUpdates = []
         UsernameNotFound = [] # username не найден в userResurses
         NameConflict = [] # fio не совпали
         UserIsNotInUsers = [] # пользователь не найден по ID в таблице Users
@@ -173,12 +179,13 @@ class MainWindow(QMainWindow):
             
             if user_data:
                 kod = user_data[0]
-                fio_DB = self.get_user_FIO(cursor, kod)
+                fio_DB = self.get_user_FIO(cursor, int(kod))
                 if fio_DB:
                     if self.compare_fio(fio_DB, user["name"]):  # сравниваем ФИО в БД и в HTML
                         newDatetime = datetime.datetime.now() #08.05.2024 11:19:31
                         cursor.execute("UPDATE UserResurses SET Pwd = ? WHERE UserName = ?", (user["password"], user_name))
                         cursor.execute("UPDATE UserResurses SET datepar = ? WHERE UserName = ?", (newDatetime, user_name))
+                        SuccessUpdates.append(user)
                         print(f"Пароль для пользователя {user_name} обновлен.")
                     else:
                         NameConflict.append(user)
@@ -190,13 +197,18 @@ class MainWindow(QMainWindow):
 
         conn.close()
 
+        log_message = "PASSWORD UPDATE REPORT:\n(fullname - username - system)\n"
+        open('log-file.txt', 'w', encoding='utf-8').close()
+        success_message = "SUCCESSFUL UPDATE FOR:\n\n"
+        for item in SuccessUpdates:
+            success_message += f"{item['name']} - {item['user']} - {item['sys']}\n"
+        log_message += success_message
+
         if not UsernameNotFound and not NameConflict and not UserIsNotInUsers:
             QMessageBox.information(self, "Successful operation", "All passwords updated")
-        else:
-            open('log-file.txt', 'w', encoding='utf-8').close()
-            log_message = "PASSWORD UPDATE REPORT:\n\n"
+        else:    
             if UsernameNotFound:
-                not_found_message = "USERNAME NOT FOUND IN 'USERRESURSES':\n\n"
+                not_found_message = "\nUSERNAME NOT FOUND IN 'USERRESURSES':\n\n"
                 for item in UsernameNotFound:
                     not_found_message += f"{item['name']} - {item['user']} - {item['sys']}\n"
                 log_message += not_found_message
@@ -210,9 +222,9 @@ class MainWindow(QMainWindow):
                 for item in uiniu_message:
                     uiniu_message += f"{item['name']} - {item['user']} - {item['sys']}\n"
                 log_message += uiniu_message
-
-            self.write_to_log(log_message)
             QMessageBox.information(self, "Successful operation", "Passwords updated with some exceptions.\nDetailed report saved to log-file.txt")
+        
+        self.write_to_log(log_message)
 
 
 
